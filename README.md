@@ -1,45 +1,24 @@
-# TechStock AI｜台股科技新聞與短線研究助理（第一版）
+# TechStock AI V3｜台美股、通膨與 AI 投資研究助理
 
-這是一個可部署到網路的 Streamlit 網站，並可透過 GitHub Actions 每個交易日產生研究報告及寄送電子郵件。
+保留 V2 台美股、Google News RSS、FRED 通膨與風險檢查功能，新增按鈕觸發的 OpenAI API 研究報告（未來 1、2、3 個月情境）。**不是交易系統，不保證預測準確。**
 
-## 本機執行
-需要 Python 3.10 或更新版本。
+## Streamlit Cloud 部署
 
-```bash
-python -m venv .venv
-# Windows:
-.venv\\Scripts\\activate
-# macOS/Linux:
-source .venv/bin/activate
-pip install -r requirements.txt
-streamlit run app.py
+1. 上傳 `app.py`、`analysis_core.py`、`ai_research.py`、`requirements.txt`、`daily_report.py`、`README.md` 至 GitHub repository 根目錄。`.github/workflows/daily.yml` 為可選的自動報告排程。
+2. 原有 Streamlit Cloud app 連接 main 分支的 `app.py`，GitHub 更新後通常會自動重新部署。
+3. 在 Streamlit Cloud → app → Settings → Secrets，填入：
+
+```toml
+OPENAI_API_KEY = "sk-填入你自己的金鑰"
+OPENAI_MODEL = "gpt-4.1-mini"
 ```
 
-## 部署成公開網站
-1. 建立 GitHub 帳號：https://github.com/signup
-2. 建立新的 repository，將本專案檔案上傳（不要上傳密碼或金鑰）。
-3. 前往 https://share.streamlit.io/，登入並選擇 Create app。
-4. 選擇 repository、branch，主程式指定 `app.py`，再按 Deploy。
-5. 部署成功後會得到 `*.streamlit.app` 網址。
+**金鑰只填在 Streamlit Secrets，絕不可貼進 GitHub、聊天室或 README。** OpenAI API 需要另外設定計費與額度，ChatGPT 訂閱不等於 API 額度。建議先設定 API 使用預算及限制公開網站存取權限。若不想公開服務，可使用 Streamlit 的存取控制設定。
 
-官方文件：
-- Streamlit 部署：https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app
-- GitHub Actions 排程：https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+## 分析限制
 
-## 設定每日電子郵件
-在 GitHub repository 的 Settings → Secrets and variables → Actions，新增以下 Repository secrets：
-- `SMTP_HOST`：Gmail 通常為 `smtp.gmail.com`
-- `SMTP_PORT`：`587`
-- `SMTP_USER`：寄件 Gmail 地址
-- `SMTP_PASSWORD`：Gmail 應用程式密碼（需先啟用兩步驟驗證並建立 App Password）
-- `REPORT_FROM`：寄件地址
-- `REPORT_TO`：收件地址
-
-不要把郵件密碼放進程式碼或公開 repository。完成後，到 Actions → Taiwan TechStock Daily Report → Run workflow 手動測試。排程預設為週一至週五台灣時間約 07:10，GitHub 排程可能延遲。
-
-## 資料來源與限制
-- 科技新聞：Google News RSS 搜尋結果；請點進原文核實來源與發布時間。
-- 歷史行情：透過 `yfinance` 讀取 Yahoo Finance 歷史資料。此為非官方介面，可能延遲、缺漏或中斷；不可視為交易所即時報價。
-- 本版技術分數依收盤價相對 MA5、MA5 相對 MA20，以及成交量相對近 20 日均量計算。分數不是買賣指令，策略尚未經歷史回測驗證。
-- 本版尚未串接券商下單，也不保證投資報酬。請納入交易成本、滑價、跳空、流動性與漲跌幅限制，並自行查證資料。
-- 網站部署、資料來源與郵件供應商的免費方案和條款可能變動，請以服務商當前規定為準。
+- 使用 yfinance 的一年歷史調整後收盤價與技術指標，可能延遲或缺漏；不是即時交易所報價。
+- 新聞只讀 Google News RSS 的標題、時間、連結，**沒有讀新聞全文**，請點入來源核實。
+- FRED 的觀測期間不等於公布日期，也未取得市場預期值。
+- AI 提供條件式情境，不是統計驗證的未來報酬機率；本版尚未提供嚴謹的樣本外回測。
+- 每次按下 AI 分析會呼叫付費 API；未設定 Secrets 時其他 V2 功能仍可使用。

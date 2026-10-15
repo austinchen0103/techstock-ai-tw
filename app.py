@@ -5,6 +5,7 @@ import feedparser
 import pandas as pd
 import streamlit as st
 from analysis_core import TW,US,analyze,macro_data,macro_interpretation
+from ai_research import stock_evidence, relevant_news, generate_report
 
 TZ=ZoneInfo('Asia/Taipei')
 st.set_page_config(page_title='TechStock AI｜台美股與通膨研究',page_icon='📈',layout='wide')
@@ -51,7 +52,7 @@ def stock_panel(raw,market):
     st.download_button('下載分析 CSV',df.to_csv(index=False).encode('utf-8-sig'),f'{market}_analysis.csv','text/csv',key='dl_'+market)
     st.caption('研究分數僅依 MA5、MA20 與成交量計算，並未經回測；美股幣別通常為美元，台股通常為新台幣。')
 
-news_tab,tw_tab,us_tab,macro_tab,risk_tab=st.tabs(['📰 全球科技新聞','🇹🇼 台股分析','🇺🇸 美股分析','🏦 通膨與台股影響','🧭 風險檢查'])
+news_tab,tw_tab,us_tab,macro_tab,risk_tab,ai_tab=st.tabs(['📰 全球科技新聞','🇹🇼 台股分析','🇺🇸 美股分析','🏦 通膨與台股影響','🧭 風險檢查','🤖 AI 投資研究'])
 with news_tab:
     if st.button('重新整理新聞'):get_news.clear()
     for title,link,published,term in get_news():
@@ -81,3 +82,38 @@ with risk_tab:
         st.caption('僅依價格差估算，未計入手續費、交易稅、匯差、滑價、跳空；不是買進建議。')
     else:st.warning('停損價必須大於0且低於進場價')
 st.divider();st.caption('頁面產生時間：'+datetime.now(TZ).strftime('%Y-%m-%d %H:%M:%S')+' 台灣時間')
+
+with ai_tab:
+    st.subheader('🤖 AI 投資研究｜未來 1～3 個月情境')
+    st.caption('只在按下分析按鈕時呼叫 OpenAI API；每次分析可能產生 API 費用。模型無法保證預測準確。')
+    api_key = st.secrets.get('OPENAI_API_KEY', '')
+    model = st.secrets.get('OPENAI_MODEL', 'gpt-4.1-mini')
+    if not api_key:
+        st.warning('尚未設定 Streamlit Secrets：OPENAI_API_KEY。其他功能仍可正常使用。')
+    symbol = st.text_input('股票代號', value='2330.TW', key='ai_symbol').strip().upper()
+    company = st.text_input('公司名稱（改善新聞搜尋）', value='台積電', key='ai_company')
+    horizon_risk = st.selectbox('風險承受程度', ['保守', '中等', '積極'], index=1)
+    max_loss = st.number_input('可接受的單筆最大損失（%）', min_value=0.5, max_value=30.0, value=5.0, step=0.5)
+    st.info('此網站目前為公開網站。請勿輸入帳號密碼、券商帳戶或其他敏感資料；建議限制網站存取權限並設定 API 預算。')
+    if st.button('開始 AI 綜合分析（會產生 API 費用）', type='primary', disabled=not bool(api_key), key='run_ai'):
+        try:
+            with st.spinner('取得歷史行情、新聞與總經資料，並請 AI 分析…'):
+                evidence, history = stock_evidence(symbol)
+                news = relevant_news(symbol, company)
+                macro = get_macro()
+                report = generate_report(api_key, model, evidence, news, macro, {'風險程度':horizon_risk, '可接受最大單筆損失%':max_loss})
+            st.session_state['ai_report'] = report
+            st.session_state['ai_evidence'] = evidence
+            st.session_state['ai_history'] = history
+            st.session_state['ai_news'] = news
+        except Exception as exc:
+            st.error(f'分析失敗：{type(exc).__name__}。請檢查 API 金鑰、額度、模型權限與行情資料，或查看 Streamlit Logs。')
+    if st.session_state.get('ai_report'):
+        evidence = st.session_state['ai_evidence']
+        st.caption(f"行情截至：{evidence['資料日期']}｜新聞來源：Google News RSS 標題（未核實全文）")
+        st.line_chart(st.session_state['ai_history'], x_label='日期', y_label='調整後收盤價')
+        st.markdown(st.session_state['ai_report'])
+        st.download_button('下載 AI 研究報告', st.session_state['ai_report'], file_name=f'{evidence["股票代號"]}_ai_research.md', mime='text/markdown')
+        with st.expander('本次使用的新聞來源'):
+            for n in st.session_state.get('ai_news', []):
+                st.markdown(f"- [{n['標題']}]({n['連結']})（{n['發布時間']}）")
